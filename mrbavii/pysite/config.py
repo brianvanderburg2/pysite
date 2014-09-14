@@ -20,10 +20,9 @@ class Config(object):
         else:
             data = {str(name) : value}
 
-        self._sethelper(self._config, data)
+        self._merge(self._config, data)
 
-    def _sethelper(self, where, data):
-        """ Set data in a specific location in the config. """
+    def _merge(self, where, data):
         for (name, value) in data.items():
             # Split by '.'
             parts = str(name).split('.')
@@ -40,7 +39,7 @@ class Config(object):
             if isinstance(value, dict):
                 if not name in tmpwhere or not isinstance(tmpwhere[name], dict):
                     tmpwhere[name] = {}
-                self._sethelper(tmpwhere[name], value)
+                self._merge(tmpwhere[name], value)
 
             elif isinstance(value, (list, tuple)):
                 if not name in tmpwhere:
@@ -55,11 +54,15 @@ class Config(object):
 
     def get(self, name, defval=None):
         """ Get a value from the data """
+        return copy.deepcopy(self._get(name, defval))
+
+    def _get(self, name, defval=None):
+        # Check override first
         override_result = None
         if self._override:
             override_result = self._override.get(name)
             if not override_result is None and not isinstance(override_result, dict):
-                return copy.deepcopy(override_result)
+                return override_result
 
         # Split by '.'
         parts = str(name).split('.')
@@ -71,7 +74,7 @@ class Config(object):
             if part in tmpwhere and isinstance(tmpwhere[part], dict):
                 tmpwhere = tmpwhere[part]
             elif not override_result is None:
-                return copy.deepcopy(override_result)
+                return override_result
             else:
                 return defval
 
@@ -79,22 +82,24 @@ class Config(object):
         if name in tmpwhere:
             result = tmpwhere[name]
             if override_result is None:
-                return copy.deepcopy(result)
+                return result
             elif not isinstance(result, dict):
-                return copy.deepcopy(override_result)
+                return override_result
             else:
-                result = copy.deepcopy(result)
-                # Use sethelper to merge override_result into result
-                self._sethelper(result, override_result)
+                result = copy.deepcopy(result) # Make sure merge doesn't modify our config
+                self._merge(result, override_result)
                 return result
 
         elif not override_result is None:
-            return copy.deepcopy(override_result)
+            return override_result
         else:
             return defval
 
     def all(self, name):
         """ Return all named items from self and override """
+        return copy.deepcopy(self._all(name))
+
+    def _all(self, name):
         results = []
         if self._override:
             results.extend(self._override.all(name))
@@ -109,13 +114,13 @@ class Config(object):
             if part in tmpwhere and isinstance(tmpwhere[part], dict):
                 tmpwhere = tmpwhere[part]
             else:
-                return copy.deepcopy(results)
+                return results
 
         # Return the value
         if name in tmpwhere:
             results.append(tmpwhere[name])
 
-        return copy.deepcopy(results)
+        return results
 
     def flatten(self, name):
         """ Return all named items from self and override, flattened into a single list """
