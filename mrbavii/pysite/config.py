@@ -14,6 +14,8 @@ class Config(object):
         # Create the dict we are setting
         if isinstance(config, dict):
             self._merge(self._config, config)
+        elif isinstance(config, Config):
+            self._merge(self._config, config._config)
 
     def clone(self, config=None):
         """ Return a copy of the configuration. """
