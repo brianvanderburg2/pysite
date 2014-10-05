@@ -1,4 +1,60 @@
-import copy
+"""
+Configuration container
+"""
+
+class _ConfigDict(dict):
+    """ A simple immutable configuration dictionary.
+        This dictionary once protected will not allow changes to items.  The
+        protection will apply recursively to nested lists and dictionaries.
+    """
+
+    def __init__(self, *args, **kwargs):
+        dict.__init__(self, *args, **kwargs)
+        self.__protected = (kwargs.get('protected', False) == True);
+
+    def protect(self):
+        if self.__protected:
+            return
+
+        for (key, value) in self.items():
+            self[key] = self.__protect(value)
+
+        self.__protected = True
+
+    def __protect(self, value):
+        if isinstance(value, dict):
+            return self.__protect_dict(value)
+        elif isinstance(value, list):
+            return self.__protect_list(value)
+        else:
+            return value
+
+    def __protect_dict(self, value):
+        if not isinstance(value, _ConfigDict):
+            value = _ConfigDict(value)
+        value.protect()
+        return value
+
+    def __protect_list(self, value):
+        clone = list(value)
+        for idx in range(len(clone)):
+            clone[idx] = self.__protect(clone[idx])
+
+        return tuple(clone)
+
+    def __setitem__(self, name, value):
+        if self.__protected:
+            raise TypeError("'ConfigDict' object does not support item assignment after being protected")
+        else:
+            dict.__setitem__(self, name, value)
+
+    def __delitem__(self, name):
+        if self.__protected:
+            raise TypeError("'ConfigDict' object does not support item deletion after being protected")
+
+    def __repr__(self):
+        return "ConfigDict(" + dict.__repr__(self) + (", protected=True)" if self.__protected else ")")
+
 
 class Config(object):
     """ A simple configuration container.
@@ -51,29 +107,38 @@ class Config(object):
             Parameters:
 
                 *args -- One or more configuration objects or dictionaries.
+            
+            The configurations from the passed in items will be merged from
+            first to last.  Dictionaries will be merged recursively and lists
+            or tuples will be appeded.  Additionaly, the names of items in the
+            top as well as nested dictionaries will be split by a dot '.' in
+            the name to produce the configuration structure.  After merging,
+            the configuration data will be protected to be read-only.
         """
-        self._config = {}
-        self.update(*args)
 
-    def update(self, *args):
-        """ Set a configuration value.
+        self._config = None
+        
+        # No items
+        if len(args) == 0:
+            return
 
-            Parameters:
+        # Only one item, we can optimize by making our config point to the
+        # other config's dictionary which is already protected
+        if len(args) == 1 and isinstance(args[0], Config):
+            self._config = args[0]._config
+            return
 
-                *args -- One or more configuration objects or dictionaries.
-
-            The configurations from the passed in items will be merged in
-            with the current configuration from first to last.  Dictionaries
-            will be merged in recursively and lists or tuples will be appeded
-            as a list internally.  Additionaly, the names of items in the top
-            as well as nested dictionaries will be split by a dot '.' in the
-            name to preduce the configuration structure.
-        """
+        # Merge in from first to last
+        config = _ConfigDict()
         for arg in args:
             if isinstance(arg, dict):
-                self._merge(self._config, arg)
+                self._merge(config, arg)
             elif isinstance(arg, Config):
-                self._merge(self._config, arg._config)
+                self._merge(config, arg._config)
+
+        if len(config) != 0:
+            config.protect()
+            self._config = config
 
     def _merge(self, target, config):
         """ Merge config into the target recursively. """
@@ -86,14 +151,14 @@ class Config(object):
             where = target
             for part in parts:
                 if not part in where or not isinstance(where[part], dict):
-                    where[part] = {}
+                    where[part] = _ConfigDict()
                 where = where[part]
 
             # Found where to put it, what to do with the value
             if isinstance(value, dict):
                 # Merge nested items
                 if not name in where or not isinstance(where[name], dict):
-                    where[name] = {}
+                    where[name] = _ConfigDict()
                 self._merge(where[name], value)
 
             elif isinstance(value, (list, tuple)):
@@ -127,8 +192,11 @@ class Config(object):
         """
         
         # Return total config if requested
+        if self._config is None:
+            return defval;
+
         if name is None:
-            return copy.deepcopy(self._config)
+            return self._config;
 
         # Split by '.'
         parts = str(name).split('.')
@@ -144,7 +212,7 @@ class Config(object):
 
         # Return the value
         if name in where:
-            return copy.deepcopy(where[name])
+            return where[name]
         else:
             return defval
 
