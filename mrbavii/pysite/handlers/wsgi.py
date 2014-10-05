@@ -4,13 +4,14 @@ This is the code that handles WSGI.
 
 from . import base
 from ..response import DefaultResponse, REASON_PHRASES
+from ..util import convert_to_bytes
 
 
 class Request(base.Request):
     """ A WSGI request class. """
-    def __init__(self, handler, environ):
+    def __init__(self, config, environ):
         """ Initialize the request. """
-        base.Request.__init__(self, handler)
+        base.Request.__init__(self, config)
 
 
 class Handler(base.Handler):
@@ -31,18 +32,12 @@ class Handler(base.Handler):
 
 
         # Prepare status and headers
-        response.prepare()
-        response_status = "{0} {1}".format(str(response.status), REASON_PHRASES.get(response.status, 'UNKNOWN'))
-        response_headers = [(i, response._headers[i]) for i in response._headers]
+        headers = response.prepare()
+        response_status = "{0} {1}".format(str(response.status), response.reason)
+        response_headers = [(i, headers[i]) for i in headers]
 
         # Return
         start_response(response_status, response_headers)
 
-        return [response._body]
-        
-
-        
-        
-
-
+        return [convert_to_bytes(response._body, response._charset)]
 

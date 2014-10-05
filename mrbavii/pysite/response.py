@@ -1,5 +1,8 @@
-from . import defaults
+"""
+Implementation of a response.
+"""
 
+from .config import Config
 
 # HTTP Status codes, borrowed from Django
 REASON_PHRASES = {
@@ -68,23 +71,28 @@ REASON_PHRASES = {
 class Response(object):
     """ Response object. """
 
-    def __init__(self, config, status=None, content_type=None):
+    def __init__(self, config, content_type, charset=None, status=None):
         """ Create a response object. """
-        self._config = config
+        self._config = Config(config)
+        self._charset = charset
         self._headers = {}
         self._cookies = {}
         self._body = None
         self._sendfile = None
 
-        if status is None:
-            self.status = 200
-        else:
+        # Set status
+        if not status is None:
             self.status = status
-
-        if content_type is None:
-            self.content_type = config.get('response.default.content-type', 'application/octet-stream')
         else:
-            self.content_type = content_type
+            self.status = 200
+
+        self.reason = REASON_PHRASES.get(self.status, 'UNKNOWN')
+
+        # Set content type
+        if not charset is None:
+            content_type = "{0}; charset={1}".format(content_type, charset)
+
+        self._headers['Content-Type'] = content_type
 
     def sendbody(self, body):
         self._body = body
@@ -96,11 +104,8 @@ class Response(object):
 
     def prepare(self):
         """ Prepare for sending. """
+        return self._headers
 
-        # Headers
-        self._headers['Content-Type'] = self.content_type
-
-        # Body or sendfile
         
 
 class DefaultResponse(Response):
