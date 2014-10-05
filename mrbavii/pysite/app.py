@@ -1,26 +1,20 @@
 """
-This is the base application class for a WSGI application
+This is the application class.
 """
 
+from .response import Response
+
 class Application(object):
-    def __init__(self):
-        pass
+    """ A basic application object that parses a request and produces a response. """
 
-    def __call__(self, environ, start_response):
-        # TODO: setup some stuff
+    def __init__(self, config=None):
+        """ Initialize the application with optional configuration. """
+        self._config = config
+        self._routes = []
 
-    def onRequest(self, request):
-        pass
+    def get_response(self, request):
+        pass # TODO: handle routes
 
-
-class NestedApplication(Application):
-    def __init__(self):
-        Application.__init__(self)
-        self._nested = []
-
-    def register(self, path, app):
-        self._nested.append((path, app))
-
-    def __call__(self, environ, start_response):
-        # TODO: determine dispatcher to handler, fix SCRIPT_NAME and PATH_INFO, call nested application
+    def route(self, route, fn):
+        pass # TODO: register a route
 
