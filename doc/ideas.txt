@@ -1,0 +1,338 @@
+PySite Ideas
+=========================================
+
+Config
+------
+Many objects take a Config instance.
+For consistency, the Config instance should be the first parameter.
+Make changes where needed.
+
+Application vs Handler
+----------------------
+Basic operation:
+
+    Handler gets called.
+    Handler creates request object
+    Handler calls application's get_repsonse with the request object.
+    Application creates and returns a response object.
+    Handler handles the response as needed
+
+app1 = TheApp(config)
+application = wsgi.Handler(app1, handler_config)
+
+
+from flup.server.fcgi import WSGIServer
+WSGIServer(application).run()
+
+Sendfile Support
+----------------
+
+Server configuration:
+
+    server.response.sendfile.method:
+
+        can be 'xsendfile', 'xsendfile2', 'nginx', 'server'
+
+    'xsendfile':
+
+        Header: X-Sendfile <filename>
+        No support for ranges
+
+    'xsendfile2':
+
+        Header: X-Sendfile2 <encoded-filename> <range>
+        filename: urlencode filename, then replace ',' with '%2c'
+        range:
+            start-end (specify start and end bytes)
+            start- (specify start, read rest of file)
+
+        Does NOT set headers
+            Need to set response 206
+            Need to set Content-Range if needed
+
+    'nginx':
+
+        Header: X-Accel-Redirect <path>
+        path is like an absolute path, but uses a prefix (location in nginx)
+        To map this, a configuration is used to convert absolute path to
+        the correct nginx location.  This is a simple find/replace with the first match:
+
+        server.response.sendfile.nginx.mapping = [(prefix, replace), ...]
+
+        Example:
+
+            [('/path/to/real/files/', '/protected/')]
+
+        NOTICE the start/end slashes.  The first prefix that matches the
+        start of the string will be subtituted for the replacement:
+
+            sendfile('/path/to/real/files/documents/image.iso'):
+
+        Becomes
+
+            X-Accel-Redirect: /protected/documents/image.iso
+                
+Unicode
+-------
+
+All text items should be in unicode.  Text to be treated
+
+Python 3 doesn't support u'string', so instead use u('string'):
+
+if sys.version[0] < '3':
+    import codecs
+    def u(s):
+        return codecs.unicode_escape_decode(s)[0]
+else:
+    def u(s):
+        return s
+
+Place this code in 'compat'
+
+
+Needed modules
+--------------
+mrbavii.pysite.
+    handlers.
+        base (Handler, Request, Response)
+        wsgi (Handler, Request, Response)
+    app
+    template
+    config
+    session
+    request
+    response
+    database
+
+mrbavii.pysite.app.ApplicationBase
+----------------------------------
+* Base application class
+* Callable (with environ and start_response)
+* May contain common methods for derived classes
+
+mrbavii.pysite.app.NestedApplication
+------------------------------------
+* Call nested application callbacks based on PATH_INFO
+* Split PATH_INFO section for nested application out and merge into SCRIPT_NAME
+* Nested applications may need to have a setting whether they are thread safe or not
+    * If not, only allow one call at a time
+
+mrbavii.pysite.app.Application
+------------------------------
+* Provide some basic dispatching/routing
+    * app = Application()
+    * @app.route(...)
+    * def fn(self, request):
+    *     return response
+    * or
+    * class MyApp(Application):
+    *     def __init__(self, ...):
+    *          self.route(...)
+    *     Application.route(...)
+    *     def fn(self, request):
+    *         return response
+
+
+mrbavii.pysite.template.Template
+--------------------------------
+* Takes config instance
+* Can load template files, compiles into python bytecode
+* Optionally cache bytecode to a cache directory (maybe not, could be security issue)
+* Can have set variables
+    * Variables can be callback functions, which are then called
+* Can have modifiers
+* Usage
+    * p = Template(config)
+    * p.set(...)
+    * p.send('name')
+    * p.build('name')
+* Path to templates in config
+    * Allows an application's templates to be overriden
+        * myc = Config()
+        * myc.load('custom')
+        * app = MyApp(myc) (MyApp would create a config, using myc as the override,
+          then a template would be passed that config and use all/flatten, so override
+          of myc would be first before default config for app)
+        * config = Config(myc)
+        * t = Template(config)
+        * t.send('name')
+
+
+from mrbavii import pysite
+from mrbavii import pyforum
+from mrbavii import pycomments
+
+c = pysite.Config(None, "config.ini")
+forum = pyforum.Forum(c)                # Uses/derives from pysite.Application
+comments = pycomments.Comments(c)       # Uses/derives from pysite.Application
+
+app = pysite.NestedApplication()
+app.route("forum", forum)
+app.route("comments", comments)
+
+from mrbavii.pysite.server import FastCGI as Server
+s = Server(app)
+s.serve()
+
+
+
+
+
+Template engine by translating template to python:
+
+Variable Names
+==============
+
+    A variable name to access the data in the template's data, can contain
+    
+    alpha (a-z, a-Z)
+    digit (0-9)
+    underscores (_)
+
+    array index ([,])
+    string (",')
+    member ('.')
+
+Examples:
+
+    ${name}                             self.vars['name']
+    ${user.name}                        self.vars['user'].name
+    ${user['name']}                     self.vars['user']['name']
+    ${users.userinfo.info1['name']}     self.vars['users'].userinfo.info1['name']
+    ${users[0].name}                    self.vars['users'][0].name
+
+Modifier functions
+==================
+
+    a-z, A-Z, 0-9, _
+    Parameters may also contain a '.'
+
+Escaped items
+=============
+
+    $$ - a single $
+    %% - a single %
+    ## - a single #
+
+
+Comments
+========
+
+    #{comment}
+
+Examples
+
+    #{Where are we going next}
+
+
+Output
+======
+
+    ${var}
+    ${var | modifier(parameters) | modifier(parameters) | ...}
+
+becomes
+   
+    output = self.vars['var']
+    output = self.modify(output, "modifier", parameters)
+    output = self.modify(output, "modifier", parameters)
+    self.write(output)
+    output = None
+
+Filters:
+
+    If the second form is used, the registered modifier function is called on the specified variable
+    and the result is output.  Without a filter function, all output is direct, unless a default
+    filter function has been set.
+
+Conditionals
+============
+
+    %{if <var> [|modifier(...) | modifier(...)]}
+    %{else}
+    %{end}
+
+becomes:
+
+    test_if1 = self.vars['var']
+    test_if1 = self.modify(test_if1, "modifier", parameters)
+    test_if1 = self.modify(test_if1, "modifier", parameters)
+    if test_if1:
+        ...
+    else:
+        ...
+
+Looping
+=======
+
+    %{for <name>[,<indexname>] in <var>}
+    %{else}
+    %{end}
+
+becomes:
+
+    index_for1 = 0
+    for item_for1 in self.vars['var']:
+        self.vars[name] = item_for1
+        self.vars[indexname] = index_for1
+        ...
+        index_for1 += 1
+    else:
+        ...
+
+Declaring
+=========
+
+    %{declare <name>}
+    %{end}
+
+becomes:
+
+    self.pushbuffer(name)
+    ...
+    self.savebuffer()
+
+Calling another template
+========================
+
+    %{call <template>}
+    %{param <name> <value>}
+    %{end}
+
+becomes
+    
+    for each name:
+        self.saved[name] = self.vars[name]
+        self.vars[name] = self.vars[value]
+
+    self.call(template)
+
+    for name in self.saved:
+        self.vars[name] = self.saved[name]
+
+Example:
+
+<!DOCTYPE html>
+<html xmlns="...">
+<head>
+    <title>${title | escape}</title>
+</head>
+<body>
+    ${body}
+</body>
+</html>
+
+Another file
+
+%{declare body}
+    <h1>My Stuff</h1>
+    <ul>
+        %{for item in items}
+        <li>${item.name | escape} - ${item.count | escape}</li>
+        %{end}
+    </ul>
+    <h2>My Value</h2>
+    <p>${cost | format(0.2d) | escape</p>
+{% end %}
+{% call mainpage %}
+
