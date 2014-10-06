@@ -109,5 +109,6 @@ class Response(object):
         
 
 class DefaultResponse(Response):
-    pass
+    def __init__(self, config, status):
+        Response.__init__(self, config, 'text/html', charset='utf-8', status=status)
 

@@ -1,11 +1,9 @@
 from ..app import Application
 from .. import response
-
-from ..handlers.wsgi import Handler
+from ..config import Config
 
 from wsgiref.simple_server import make_server
 
-from ..config import Config
 
 c = Config()
 
@@ -18,13 +16,11 @@ class A(Application):
 
     def get_response(self, request):
         r = response.Response(self._config, 'text/html', charset="utf-8")
-        r.sendbody("<html><head><title>Hey</title><body><b>Hello World {0}</b></body></html>".format(self._counter))
+        r.sendbody("<html><head><title>Hey</title><body><b>Hello World {0}:{1}</b></body></html>".format(self._counter, request._timer))
         self._counter += 1
 
         return r
 
-handler = Handler(A(c))
-
-httpd = make_server('', 8000, handler)
+httpd = make_server('', 8000, A(c))
 httpd.serve_forever()
 
