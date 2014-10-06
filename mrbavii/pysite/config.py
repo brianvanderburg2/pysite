@@ -133,7 +133,7 @@ class Config(object):
         for arg in args:
             if isinstance(arg, dict):
                 self._merge(config, arg)
-            elif isinstance(arg, Config):
+            elif isinstance(arg, Config) and not arg._config is None:
                 self._merge(config, arg._config)
 
         if len(config) != 0:
