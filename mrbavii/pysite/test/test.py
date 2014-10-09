@@ -1,4 +1,4 @@
-from ..app import Application
+from ..app import Application, ProxyApplication, BaseEchoApplication
 from .. import response
 from ..config import Config
 
@@ -6,8 +6,6 @@ from wsgiref.simple_server import make_server
 
 
 c = Config()
-
-
 
 class A(Application):
     def __init__(self, config):
@@ -21,6 +19,10 @@ class A(Application):
 
         return r
 
-httpd = make_server('', 8000, A(c))
+p = ProxyApplication(BaseEchoApplication())
+p.register('/1test', A(c))
+p.register('/2test', BaseEchoApplication())
+
+httpd = make_server('', 8000, p)
 httpd.serve_forever()
 
