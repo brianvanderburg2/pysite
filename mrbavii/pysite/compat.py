@@ -25,7 +25,7 @@ else:
         """ Return the unicode version of the string. """
         return s
 
-    def b(s)
+    def b(s):
         """ Return the string as bytes. """
         return codecs.unicode_escape_encode(s)[0]
 
