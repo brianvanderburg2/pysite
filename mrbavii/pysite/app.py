@@ -32,7 +32,7 @@ class BaseEchoApplication(BaseApplication):
                    ('Content-Length', str(len(response)))]
 
         start_response('200 OK', headers)
-        return response.encode('utf-8')
+        return [response.encode('utf-8')]
 
 
 class ProxyApplication(BaseApplication):
