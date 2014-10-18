@@ -1,4 +1,4 @@
-PySite - A Python web mini-framework and utility classes.
+PySite - A set of Python site helper classes and applications.
 Copyright (c) 2014 Brian Allen Vanderburg II
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
