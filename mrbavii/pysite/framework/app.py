@@ -2,6 +2,8 @@
 This is the application class.
 """
 
+import re
+
 from .config import Config
 from .request import Request
 from .response import Response, DefaultResponse
@@ -39,6 +41,7 @@ class ProxyApplication(BaseApplication):
     """ An application that dispatches to other applications based on PATH_INFO. """
 
     def __init__(self, app):
+        """ Create the proxy application and specify the default application. """
         BaseApplication.__init__(self)
         self._proxy = []
         self._app = app
@@ -51,7 +54,7 @@ class ProxyApplication(BaseApplication):
         """ Handle the request and dispatch to the correct application. """
         self.fix_environ(environ)
 
-        path_info = environ['PATH_INFO']
+        path_info = environ.get('PATH_INFO', '/')
         for (path, app) in self._proxy:
             if path_info.startswith(path) and path_info[len(path):len(path)+1] in ('', '/'):
                 if len(path):
@@ -80,10 +83,17 @@ class Application(BaseApplication):
         self._routes = []
     
     def get_response(self, request):
-        pass # TODO: handle routes
+        """ Handle the request with routes. """
+        for i in self.routes:
+            mo = i[0].match(requset, pathinfo)
+            if mo:
+                return i[1](request, mo)
+        else:
+            return None
 
     def route(self, route, fn):
-        pass # TODO: register a route
+        """ Register the route. """
+        self.routes.append((re.compile(route), fn))
 
     def __call__(self, environ, start_response):
         """ Handle the application call. """
